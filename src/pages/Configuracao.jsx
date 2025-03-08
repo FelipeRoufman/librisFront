@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../styles/Configuracao.module.css';
 import GenreSelector from '../components/GenreSelector';
+import backendApi from '../services/backendApi';
+import { useAuth } from '../context/AuthContext';
 
 function Configuracao() {
+  const { user, token, setUser  } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [genres, setGenres] = useState(["Romance", "Fantasia"]); // Inicialize com valores padrão
-  const [showGenres, setShowGenres] = useState(false);  const [notifications, setNotifications] = useState({
+  const [showGenres, setShowGenres] = useState(false);
+  const [notifications, setNotifications] = useState({
     mentions: false,
     followers: false,
     newFollowers: false,
@@ -19,11 +23,63 @@ function Configuracao() {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
 
+  useEffect(() => {
+    if (user) {
+      // Atualiza o username com o username do usuário
+      if (user.data && user.data.username) {
+        setUsername(user.data.username);
+      }
+      
+      // Atualiza o email com o email do usuário
+      if (user.data && user.data.email) {
+        setEmail(user.data.email);
+      }
+      
+      // Atualiza os gêneros favoritos se estiverem disponíveis
+      if (user.perfil && user.perfil.generosFavoritos && user.perfil.generosFavoritos.length > 0) {
+        setGenres(user.perfil.generosFavoritos);
+      }
+    }
+  }, [user]);
+
   // Callback para receber os gêneros do GenreSelector
-  const handleGenreSelection = (selectedGenres) => {
+  const handleGenreSelection = async (selectedGenres) => {
     setGenres(selectedGenres);
     setShowGenres(false); // Fechar o modal após salvar
+
+    if (user?.perfil?.id) {
+      try {
+        const payload = {
+          usuario: {
+            email: user.data.email,
+            username: user.data.username
+          },
+          urlPerfil: user.perfil.urlPerfil,
+          resumoBio: user.perfil.resumoBio,
+          seguindo: user.perfil.seguindo,
+          seguidores: user.perfil.seguidores,
+          generosFavoritos: selectedGenres,
+          urlBackPerfil: user.perfil.urlBackPerfil
+        };
+  
+        await backendApi.put(`/perfil/${user.perfil.id}`, payload, { 
+          headers: { Authorization: `Bearer ${token}` }
+        });
+  
+        // atualiza usuário com os novos gêneros
+        setUser(prev => ({
+          ...prev,
+          perfil: {
+            ...prev.perfil,
+            generosFavoritos: selectedGenres
+          }
+        }));
+      } catch (error) {
+        console.error('Erro ao salvar gêneros:', error.response?.data || error);
+      }
+    }
   };
+  
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'genres') {
@@ -66,7 +122,7 @@ function Configuracao() {
           name="username"
           value={username}
           onChange={handleInputChange}
-          placeholder='@nome de usuário'
+          placeholder={username || '@nome de usuário'}
           disabled
         />
       </label>
@@ -76,7 +132,7 @@ function Configuracao() {
           name="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder='exemplo@exemplo'
+          placeholder={email || 'exemplo@exemplo'}
           disabled
         />
       </label>
@@ -222,4 +278,3 @@ function Configuracao() {
 }
 
 export default Configuracao;
-
